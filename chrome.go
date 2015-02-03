@@ -124,6 +124,10 @@ func (ch *Chrome) readMessages() {
 
 }
 
+func (ch *Chrome) Close() error {
+	return ch.c.Close()
+}
+
 func getTab(url string, tab int) (string, error) {
 	resp, err := http.Get(url + "/json")
 	if err != nil {
