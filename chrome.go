@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"strings"
 
 	"github.com/gorilla/websocket"
 )
@@ -33,9 +32,8 @@ type Tab struct {
 }
 
 type Chrome struct {
-	c              *websocket.Conn
-	NetworkHandler func(Message)
-	Loaded         chan bool
+	c         *websocket.Conn
+	listeners map[string][]chan Message
 }
 
 type Message struct {
@@ -49,14 +47,13 @@ type Result struct {
 	Result map[string]interface{} `json:"result"`
 }
 
-func New(url string, tab int, nh func(Message)) (*Chrome, error) {
+func New(url string, tab int) (*Chrome, error) {
 	url, err := getTab(url, tab)
 	c, err := newClient(url)
 	if err != nil {
 		return nil, err
 	}
-	loaded := make(chan bool)
-	ch := &Chrome{c, nh, loaded}
+	ch := &Chrome{c, make(map[string][]chan Message, 0)}
 	go ch.readMessages()
 	return ch, err
 }
@@ -68,32 +65,6 @@ func (ch *Chrome) Send(co Command) error {
 	}
 	err = ch.c.WriteMessage(1, message)
 	return err
-}
-
-func (ch *Chrome) SendSync(co Command) (Result, error) {
-	message, err := json.Marshal(co)
-	if err != nil {
-		return Result{}, err
-	}
-	err = ch.c.WriteMessage(1, message)
-	for {
-		_, r, err := ch.c.ReadMessage()
-		if err != nil {
-			continue
-		}
-
-		res := Result{}
-		err = json.Unmarshal(r, &res)
-		if err != nil {
-			fmt.Println(err)
-			continue
-		}
-
-		if res.Id == co.Id {
-			return res, nil
-		}
-
-	}
 }
 
 func (ch *Chrome) readMessages() {
@@ -109,19 +80,45 @@ func (ch *Chrome) readMessages() {
 			fmt.Println(err)
 			continue
 		}
+		go ch.broadMsgs(m)
+	}
+}
 
-		if m.Method == "Page.loadEventFired" {
-			ch.Loaded <- true
-			close(ch.Loaded)
-			break
-		}
-
-		if strings.HasPrefix(m.Method, "Network.") {
-			go ch.NetworkHandler(m)
-		}
-
+// Runs in its own goroutine, to brodacst msgs
+func (ch *Chrome) broadMsgs(m Message) {
+	lc, ok := ch.listeners[m.Method]
+	if !ok {
+		return
 	}
 
+	for c := range lc {
+		lc[c] <- m
+	}
+}
+
+// Listen on a certain event
+func (ch *Chrome) On(e string, c chan Message) (ok bool) {
+	if _, ok := ch.listeners[e]; ok {
+		ch.listeners[e] = append(ch.listeners[e], c)
+		return true
+	}
+	ch.listeners[e] = append(make([]chan Message, 0), c)
+	return true
+}
+
+// Remove a listener
+func (ch *Chrome) Off(e string, c chan Message) {
+	lc, ok := ch.listeners[e]
+	if !ok {
+		return
+	}
+
+	for i := range lc {
+		if lc[i] == c {
+			lc = append(lc[:i], lc[i+1:]...)
+			break
+		}
+	}
 }
 
 func (ch *Chrome) Close() error {
