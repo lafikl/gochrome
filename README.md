@@ -1,2 +1,9 @@
 # gochrome
-Chrome remote debugging protocol v1.1 client. Partial implementation.
+=======
+Google Chrome Remote Debugging Protocol 1.1 client for Golang.
+
+
+
+# License
+
+MIT
