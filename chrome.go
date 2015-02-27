@@ -139,7 +139,7 @@ func getTab(url string, tab int) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if len(t) < tab {
+	if len(t)-1 < tab {
 		return "", TabNotFound
 	}
 
