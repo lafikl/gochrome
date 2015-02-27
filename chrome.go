@@ -20,7 +20,7 @@ type Command struct {
 
 type Parameters map[string]interface{}
 
-type Tab struct {
+type gtab struct {
 	Description          string `json:"description"`
 	DevtoolsFrontendUrl  string `json:"devtoolsFrontendUrl"`
 	FaviconUrl           string `json:"faviconUrl"`
@@ -134,7 +134,7 @@ func getTab(url string, tab int) (string, error) {
 
 	resp.Body.Close()
 
-	t := []Tab{}
+	t := []gtab{}
 	err = json.Unmarshal(body, &t)
 	if err != nil {
 		return "", err
